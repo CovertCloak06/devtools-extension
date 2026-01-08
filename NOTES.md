@@ -1,4 +1,4 @@
-# PKN Dev Tools - Chrome Extension
+# Dev Tools - Chrome Extension
 
 ## Project Location
 `/home/gh0st/devtools-extension/`
@@ -12,29 +12,54 @@
 ## Files
 - `manifest.json` - Extension config (Manifest V3)
 - `background.js` - Click handler, injects content.js
-- `content.js` - The actual devtools UI and logic
+- `content.js` - The actual devtools UI and logic (~1000 lines)
 - `icons/` - Extension icons (16, 48, 128px)
 
 ## Features
 - **Main Hub** - Central panel to open other tools
-- **Inspector** - Pick elements, hide/show/remove, copy HTML
-- **Styles** - Width/height, colors, border, export CSS
+- **Inspector** - Pick elements, hide/show/remove, copy HTML, copy selector
+- **Styles** - Size, spacing, colors, border, radius, opacity, undo, export CSS
 - **Console** - Run JS in page context
 - **Elements** - Search by CSS selector
+- **Settings** - Theme color picker (8 presets + custom)
+- **Shortcuts** - Keyboard shortcut reference
 
 ### Panel Controls
 - **Drag** - Grab header to move
 - **Resize** - Bottom bar, right edge, corner
+- **Snap** - Drag to edges for half/quarter screen (Windows-style)
 - **◐** - Transparent mode (see-through)
 - **−** - Minimize (collapse to header)
 - **×** - Close panel
 
-### Special Features
-- Edge snapping (panels snap to screen edges)
-- Export CSS downloads all modifications
-- Click search results to select element
+### Keyboard Shortcuts
+| Key | Action |
+|-----|--------|
+| Esc | Toggle DevTools |
+| P | Pick element |
+| Ctrl+Z | Undo style change |
+| H | Hide selected |
+| S | Show selected |
+| Del | Delete selected |
+| C | Copy selector |
+| O | Outline all |
 
 ## Changelog
+
+### v2.0.0 (2026-01-08)
+- Theme customization with 8 preset colors + custom picker
+- localStorage persistence for panel positions and theme
+- Keyboard shortcuts
+- Additional style controls (padding, margin, border radius, opacity)
+- Undo functionality for style changes
+- Copy CSS selector button
+- Settings panel and Shortcuts panel
+
+### v1.1.0 (2026-01-06)
+- Fixed minimize to collapse to header only (not black box)
+- Added Windows-style snap zones (half/quarter screen)
+- Moved to standalone project `/home/gh0st/devtools-extension/`
+- Added NOTES.md for project context
 
 ### v1.0.0 (2026-01-06)
 - Initial release
@@ -47,21 +72,17 @@
 - JS console with eval
 - Element search
 
-### v1.1.0 (2026-01-06)
-- Fixed minimize to collapse to header only (not black box)
-- Added edge snapping (15px threshold)
-- Moved to standalone project `/home/gh0st/devtools-extension/`
-- Added NOTES.md for project context
-
 ## TODO
-- [ ] Save panel positions to localStorage
-- [ ] Add more style controls (padding, margin, opacity)
 - [ ] DOM tree view in Elements panel
 - [ ] Network tab
 - [ ] Performance metrics
+- [ ] Redo functionality
+- [ ] Multiple element selection
 
 ## Tech Notes
 - Uses Manifest V3 (required for Chrome)
 - All CSS scoped with `.__dt_` prefix to avoid conflicts
 - z-index starts at 2147483647 (max safe)
 - Panels track modified elements in Map for CSS export
+- Settings stored in localStorage under `__devtools_settings`
+- Theme uses `accentRGB()` helper for RGBA color variants
