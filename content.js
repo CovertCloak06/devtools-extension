@@ -380,6 +380,12 @@
     let pick = false;
     let zIndex = 2147483647;
 
+    // Snap zones preview
+    const snapPreview = document.createElement('div');
+    snapPreview.id = '__dt_snap_preview';
+    snapPreview.style.cssText = 'position:fixed;background:rgba(0,255,255,0.15);border:2px dashed #00ffff;display:none;z-index:2147483645;pointer-events:none;transition:all 0.1s ease;';
+    d.appendChild(snapPreview);
+
     // Panel dragging & resizing
     class Panel {
         constructor(el) {
@@ -440,31 +446,112 @@
                 this.el.style.zIndex = ++zIndex;
             });
         }
-        onMove(e) {
-            if (this.drag) {
-                let x = e.clientX - this.ox;
-                let y = e.clientY - this.oy;
-                const w = this.el.offsetWidth;
-                const h = this.el.offsetHeight;
-                const snap = 25; // Snap distance in pixels
-                const vw = window.innerWidth;
-                const vh = window.innerHeight;
+        getSnapZone(x, y) {
+            const edge = 40; // Edge detection zone
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
 
-                // Snap to edges
-                if (x <= snap) x = 0;
-                else if (x + w >= vw - snap) x = vw - w;
+            // Corners first (they overlap edges)
+            if (x <= edge && y <= edge) return 'top-left';
+            if (x >= vw - edge && y <= edge) return 'top-right';
+            if (x <= edge && y >= vh - edge) return 'bottom-left';
+            if (x >= vw - edge && y >= vh - edge) return 'bottom-right';
 
-                if (y <= snap) y = 0;
-                else if (y + h >= vh - snap) y = vh - h;
+            // Edges
+            if (x <= edge) return 'left';
+            if (x >= vw - edge) return 'right';
+            if (y <= edge) return 'top';
+            if (y >= vh - edge) return 'bottom';
 
-                // Also snap to center
-                const cx = (vw - w) / 2;
-                if (Math.abs(x - cx) < snap) x = cx;
+            return null;
+        }
 
-                this.el.style.left = Math.round(x) + 'px';
-                this.el.style.top = Math.round(y) + 'px';
+        showSnapPreview(zone) {
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const p = snapPreview;
+
+            const zones = {
+                'left':         { left: 0, top: 0, width: vw/2, height: vh },
+                'right':        { left: vw/2, top: 0, width: vw/2, height: vh },
+                'top':          { left: 0, top: 0, width: vw, height: vh/2 },
+                'bottom':       { left: 0, top: vh/2, width: vw, height: vh/2 },
+                'top-left':     { left: 0, top: 0, width: vw/2, height: vh/2 },
+                'top-right':    { left: vw/2, top: 0, width: vw/2, height: vh/2 },
+                'bottom-left':  { left: 0, top: vh/2, width: vw/2, height: vh/2 },
+                'bottom-right': { left: vw/2, top: vh/2, width: vw/2, height: vh/2 }
+            };
+
+            if (zone && zones[zone]) {
+                const z = zones[zone];
+                p.style.left = z.left + 'px';
+                p.style.top = z.top + 'px';
+                p.style.width = z.width + 'px';
+                p.style.height = z.height + 'px';
+                p.style.display = 'block';
+            } else {
+                p.style.display = 'none';
+            }
+        }
+
+        snapToZone(zone) {
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            // Store original size for restore
+            if (!this.originalSize) {
+                this.originalSize = {
+                    width: this.el.offsetWidth,
+                    height: this.el.offsetHeight,
+                    left: this.el.offsetLeft,
+                    top: this.el.offsetTop
+                };
+            }
+
+            const zones = {
+                'left':         { left: 0, top: 0, width: vw/2, height: vh },
+                'right':        { left: vw/2, top: 0, width: vw/2, height: vh },
+                'top':          { left: 0, top: 0, width: vw, height: vh/2 },
+                'bottom':       { left: 0, top: vh/2, width: vw, height: vh/2 },
+                'top-left':     { left: 0, top: 0, width: vw/2, height: vh/2 },
+                'top-right':    { left: vw/2, top: 0, width: vw/2, height: vh/2 },
+                'bottom-left':  { left: 0, top: vh/2, width: vw/2, height: vh/2 },
+                'bottom-right': { left: vw/2, top: vh/2, width: vw/2, height: vh/2 }
+            };
+
+            if (zones[zone]) {
+                const z = zones[zone];
+                this.el.style.left = z.left + 'px';
+                this.el.style.top = z.top + 'px';
+                this.el.style.width = z.width + 'px';
+                this.el.style.height = z.height + 'px';
                 this.el.style.right = 'auto';
                 this.el.style.bottom = 'auto';
+                this.snapped = true;
+            }
+        }
+
+        onMove(e) {
+            if (this.drag) {
+                // Restore original size when dragging a snapped panel
+                if (this.snapped && this.originalSize) {
+                    this.el.style.width = this.originalSize.width + 'px';
+                    this.el.style.height = this.originalSize.height + 'px';
+                    this.snapped = false;
+                }
+
+                let x = e.clientX - this.ox;
+                let y = e.clientY - this.oy;
+
+                this.el.style.left = x + 'px';
+                this.el.style.top = y + 'px';
+                this.el.style.right = 'auto';
+                this.el.style.bottom = 'auto';
+
+                // Show snap preview
+                const zone = this.getSnapZone(e.clientX, e.clientY);
+                this.pendingSnap = zone;
+                this.showSnapPreview(zone);
             }
             if (this.resize) {
                 const dx = e.clientX - this.startX;
@@ -477,7 +564,15 @@
                 }
             }
         }
-        onUp() { this.drag = false; this.resize = null; }
+        onUp() {
+            if (this.drag && this.pendingSnap) {
+                this.snapToZone(this.pendingSnap);
+            }
+            this.drag = false;
+            this.resize = null;
+            this.pendingSnap = null;
+            snapPreview.style.display = 'none';
+        }
     }
 
     const panels = [];
