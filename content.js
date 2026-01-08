@@ -1,4 +1,4 @@
-// PKN Dev Tools - Full Featured Chrome Extension
+// PKN Dev Tools - Full Featured Chrome Extension v2.0
 (function() {
     // Toggle if already exists
     if (window.__devtools) {
@@ -6,34 +6,96 @@
         return;
     }
 
+    // ==========================================
+    // SETTINGS & STORAGE
+    // ==========================================
+    const STORAGE_KEY = '__devtools_settings';
+    const defaultSettings = {
+        theme: {
+            accent: '#00ffff',
+            bg: 'rgba(15, 15, 20, 0.92)',
+            text: '#e0e0e0'
+        },
+        panels: {}
+    };
+
+    let settings = { ...defaultSettings };
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) settings = { ...defaultSettings, ...JSON.parse(saved) };
+    } catch (e) {}
+
+    const saveSettings = () => {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch (e) {}
+    };
+
+    const accentRGB = (alpha = 1) => {
+        const hex = settings.theme.accent.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
     // Track modified elements for CSS export
     const modifiedElements = new Map();
+    const styleHistory = []; // For undo
+    let historyIndex = -1;
 
-    // Create main panel
+    // ==========================================
+    // CREATE MAIN ELEMENT
+    // ==========================================
     const d = document.createElement('div');
     d.id = '__devtools_main';
+
+    const updateThemeCSS = () => {
+        const accent = settings.theme.accent;
+        const bg = settings.theme.bg;
+        const text = settings.theme.text;
+
+        d.querySelector('#__dt_theme_style').textContent = `
+            .__dt_panel { background: ${bg}; color: ${text}; border-color: ${accentRGB(0.5)}; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px ${accentRGB(0.15)}; }
+            .__dt_header { background: ${accentRGB(0.1)}; border-bottom-color: ${accentRGB(0.3)}; }
+            .__dt_title { color: ${accent}; text-shadow: 0 0 8px ${accentRGB(0.5)}; }
+            .__dt_hbtn { color: ${accent}; }
+            .__dt_hbtn:hover { background: ${accentRGB(0.3)}; }
+            .__dt_hbtn.active { background: ${accentRGB(0.4)}; }
+            .__dt_body::-webkit-scrollbar-thumb { background: ${accentRGB(0.4)}; }
+            .__dt_resize { background: linear-gradient(90deg, transparent 30%, ${accentRGB(0.3)} 50%, transparent 70%); }
+            .__dt_resize_c::after { border-color: ${accentRGB(0.5)}; }
+            .__dt_label { color: ${accent}; }
+            .__dt_btn { background: ${accentRGB(0.1)}; border-color: ${accentRGB(0.3)}; color: ${accent}; }
+            .__dt_btn:hover { background: ${accentRGB(0.25)}; border-color: ${accent}; }
+            .__dt_btn.active { background: ${accentRGB(0.3)}; }
+            .__dt_input { border-color: ${accentRGB(0.3)}; }
+            .__dt_input:focus { border-color: ${accent}; }
+            .__dt_tool { border-color: ${accentRGB(0.3)}; background: ${accentRGB(0.05)}; color: ${accent}; }
+            .__dt_tool:hover { background: ${accentRGB(0.15)}; border-color: ${accent}; box-shadow: 0 0 12px ${accentRGB(0.2)}; }
+            #__dt_hover { border-color: ${accent}; background: ${accentRGB(0.1)}; }
+            .__dt_range { background: ${accentRGB(0.2)}; }
+            .__dt_range::-webkit-slider-thumb { background: ${accent}; }
+            .__dt_val { color: ${accent}; }
+            #__dt_snap_preview { background: ${accentRGB(0.15)}; border-color: ${accent}; }
+            .__dt_kbd { background: ${accentRGB(0.2)}; border-color: ${accentRGB(0.4)}; color: ${accent}; }
+        `;
+    };
+
     d.innerHTML = `
-        <style>
+        <style id="__dt_base_style">
             .__dt_panel {
                 position: fixed;
-                background: rgba(15, 15, 20, 0.92);
                 backdrop-filter: blur(12px);
                 -webkit-backdrop-filter: blur(12px);
-                border: 2px solid rgba(0, 255, 255, 0.5);
+                border: 2px solid;
                 border-radius: 12px;
                 font-family: 'Courier New', monospace;
                 z-index: 2147483647;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(0,255,255,0.15);
-                color: #e0e0e0;
                 font-size: 12px;
                 min-width: 200px;
                 display: flex;
                 flex-direction: column;
             }
-            .__dt_panel.transparent {
-                background: rgba(0, 0, 0, 0.15);
-                backdrop-filter: none;
-            }
+            .__dt_panel.transparent { background: rgba(0, 0, 0, 0.15) !important; backdrop-filter: none; }
             .__dt_panel.transparent .__dt_body { opacity: 0.3; }
             .__dt_panel.transparent:hover .__dt_body { opacity: 1; }
             .__dt_panel.minimized { height: auto !important; }
@@ -50,23 +112,16 @@
                 justify-content: space-between;
                 align-items: center;
                 padding: 8px 12px;
-                background: rgba(0, 255, 255, 0.1);
-                border-bottom: 1px solid rgba(0, 255, 255, 0.3);
                 cursor: move;
                 border-radius: 10px 10px 0 0;
                 flex-shrink: 0;
+                border-bottom: 1px solid;
             }
-            .__dt_title {
-                color: #00ffff;
-                font-weight: bold;
-                text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
-                font-size: 12px;
-            }
+            .__dt_title { font-weight: bold; font-size: 12px; }
             .__dt_btns { display: flex; gap: 3px; }
             .__dt_hbtn {
                 background: rgba(255,255,255,0.1);
                 border: none;
-                color: #00ffff;
                 width: 20px;
                 height: 20px;
                 border-radius: 4px;
@@ -76,76 +131,32 @@
                 align-items: center;
                 justify-content: center;
             }
-            .__dt_hbtn:hover { background: rgba(0,255,255,0.3); }
             .__dt_hbtn.close:hover { background: rgba(255,68,68,0.5); color: white; }
-            .__dt_hbtn.active { background: rgba(0,255,255,0.4); }
 
-            .__dt_body {
-                padding: 12px;
-                overflow-y: auto;
-                flex: 1;
-                min-height: 0;
-            }
+            .__dt_body { padding: 12px; overflow-y: auto; flex: 1; min-height: 0; }
             .__dt_body::-webkit-scrollbar { width: 5px; }
-            .__dt_body::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.4); border-radius: 3px; }
+            .__dt_body::-webkit-scrollbar-thumb { border-radius: 3px; }
 
-            .__dt_resize {
-                height: 8px;
-                background: linear-gradient(90deg, transparent 30%, rgba(0,255,255,0.3) 50%, transparent 70%);
-                cursor: ns-resize;
-                flex-shrink: 0;
-            }
-            .__dt_resize_r {
-                position: absolute;
-                right: 0;
-                top: 35px;
-                bottom: 8px;
-                width: 8px;
-                cursor: ew-resize;
-            }
-            .__dt_resize_c {
-                position: absolute;
-                right: 0;
-                bottom: 0;
-                width: 14px;
-                height: 14px;
-                cursor: se-resize;
-            }
-            .__dt_resize_c::after {
-                content: '';
-                position: absolute;
-                right: 3px;
-                bottom: 3px;
-                width: 6px;
-                height: 6px;
-                border-right: 2px solid rgba(0,255,255,0.5);
-                border-bottom: 2px solid rgba(0,255,255,0.5);
-            }
+            .__dt_resize { height: 8px; cursor: ns-resize; flex-shrink: 0; }
+            .__dt_resize_r { position: absolute; right: 0; top: 35px; bottom: 8px; width: 8px; cursor: ew-resize; }
+            .__dt_resize_c { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: se-resize; }
+            .__dt_resize_c::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; border-right: 2px solid; border-bottom: 2px solid; }
 
             .__dt_section { margin-bottom: 12px; }
-            .__dt_label {
-                color: #00ffff;
-                font-size: 9px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-bottom: 6px;
-            }
+            .__dt_label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
             .__dt_btn {
                 width: 100%;
                 padding: 8px;
                 margin-bottom: 5px;
-                background: rgba(0, 255, 255, 0.1);
-                border: 1px solid rgba(0, 255, 255, 0.3);
-                color: #00ffff;
+                border: 1px solid;
                 border-radius: 5px;
                 cursor: pointer;
                 font-family: inherit;
                 font-size: 11px;
                 transition: all 0.15s;
             }
-            .__dt_btn:hover { background: rgba(0, 255, 255, 0.25); border-color: #00ffff; }
-            .__dt_btn.active { background: rgba(0, 255, 255, 0.3); }
             .__dt_row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+            .__dt_row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
             .__dt_info {
                 background: rgba(0, 0, 0, 0.4);
                 padding: 8px;
@@ -158,74 +169,56 @@
             .__dt_input {
                 width: 100%;
                 background: rgba(0, 0, 0, 0.5);
-                border: 1px solid rgba(0, 255, 255, 0.3);
+                border: 1px solid;
                 color: #e0e0e0;
                 padding: 6px 8px;
                 border-radius: 4px;
                 font-family: inherit;
                 font-size: 11px;
             }
-            .__dt_input:focus { outline: none; border-color: #00ffff; }
+            .__dt_input:focus { outline: none; }
 
             .__dt_tool {
                 padding: 14px 10px;
-                border: 1px solid rgba(0, 255, 255, 0.3);
+                border: 1px solid;
                 border-radius: 8px;
-                background: rgba(0, 255, 255, 0.05);
-                color: #00ffff;
                 cursor: pointer;
                 font-family: inherit;
                 font-size: 10px;
                 text-align: center;
                 transition: all 0.2s;
             }
-            .__dt_tool:hover {
-                background: rgba(0, 255, 255, 0.15);
-                border-color: #00ffff;
-                box-shadow: 0 0 12px rgba(0, 255, 255, 0.2);
-            }
             .__dt_tool_icon { font-size: 20px; display: block; margin-bottom: 4px; }
             .__dt_grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-            #__dt_hover {
-                position: fixed;
-                border: 2px dashed #00ffff;
-                background: rgba(0, 255, 255, 0.1);
-                pointer-events: none;
-                z-index: 2147483646;
-                display: none;
-            }
+            #__dt_hover { position: fixed; border: 2px dashed; pointer-events: none; z-index: 2147483646; display: none; }
 
             .__dt_clabel { font-size: 9px; color: #888; margin-bottom: 2px; }
             .__dt_color { height: 28px; padding: 2px; }
 
-            .__dt_range {
-                width: 100%;
-                height: 4px;
-                -webkit-appearance: none;
-                background: rgba(0, 255, 255, 0.2);
-                border-radius: 2px;
-                margin: 4px 0;
-            }
-            .__dt_range::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                width: 12px;
-                height: 12px;
-                background: #00ffff;
-                border-radius: 50%;
-                cursor: pointer;
-            }
-            .__dt_val { font-size: 9px; color: #00ffff; text-align: right; }
+            .__dt_range { width: 100%; height: 4px; -webkit-appearance: none; border-radius: 2px; margin: 4px 0; }
+            .__dt_range::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
+            .__dt_val { font-size: 9px; text-align: right; }
+
+            .__dt_kbd { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; border: 1px solid; margin-left: 4px; }
+            .__dt_shortcut { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px; color: #aaa; }
+
+            #__dt_snap_preview { position: fixed; border: 2px dashed; display: none; z-index: 2147483645; pointer-events: none; transition: all 0.1s ease; }
+
+            .__dt_preset { width: 24px; height: 24px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; }
+            .__dt_preset:hover { border-color: white; }
+            .__dt_preset.active { border-color: white; box-shadow: 0 0 8px currentColor; }
         </style>
+        <style id="__dt_theme_style"></style>
 
         <!-- MAIN HUB PANEL -->
-        <div class="__dt_panel" id="__dt_hub" style="top:20px;right:20px;width:240px;height:320px;">
+        <div class="__dt_panel" id="__dt_hub" style="top:20px;right:20px;width:240px;height:360px;">
             <div class="__dt_header">
                 <span class="__dt_title">Dev Tools</span>
                 <div class="__dt_btns">
                     <button class="__dt_hbtn __dt_transtoggle" title="Transparent">◐</button>
                     <button class="__dt_hbtn __dt_mintoggle" title="Minimize">−</button>
-                    <button class="__dt_hbtn close __dt_closemain" title="Close">×</button>
+                    <button class="__dt_hbtn close __dt_closemain" title="Close (Esc)">×</button>
                 </div>
             </div>
             <div class="__dt_body">
@@ -236,6 +229,8 @@
                         <button class="__dt_tool" data-panel="__dt_styles"><span class="__dt_tool_icon">🎨</span>Styles</button>
                         <button class="__dt_tool" data-panel="__dt_console"><span class="__dt_tool_icon">🖥</span>Console</button>
                         <button class="__dt_tool" data-panel="__dt_elements"><span class="__dt_tool_icon">📦</span>Elements</button>
+                        <button class="__dt_tool" data-panel="__dt_settings"><span class="__dt_tool_icon">⚙️</span>Settings</button>
+                        <button class="__dt_tool" data-panel="__dt_shortcuts"><span class="__dt_tool_icon">⌨️</span>Shortcuts</button>
                     </div>
                 </div>
                 <div class="__dt_section">
@@ -252,7 +247,7 @@
         </div>
 
         <!-- INSPECTOR PANEL -->
-        <div class="__dt_panel hidden" id="__dt_inspector" style="top:80px;left:20px;width:280px;height:300px;">
+        <div class="__dt_panel hidden" id="__dt_inspector" style="top:80px;left:20px;width:280px;height:340px;">
             <div class="__dt_header">
                 <span class="__dt_title">Inspector</span>
                 <div class="__dt_btns">
@@ -262,10 +257,10 @@
                 </div>
             </div>
             <div class="__dt_body">
-                <button class="__dt_btn" id="__dt_pick">👆 Pick Element</button>
+                <button class="__dt_btn" id="__dt_pick">👆 Pick Element <span class="__dt_kbd">P</span></button>
                 <div class="__dt_section">
                     <div class="__dt_label">Selected</div>
-                    <div class="__dt_info" id="__dt_info">Click "Pick Element" then select</div>
+                    <div class="__dt_info" id="__dt_info">Click "Pick Element" or press P</div>
                 </div>
                 <div class="__dt_section">
                     <div class="__dt_label">Actions</div>
@@ -277,6 +272,7 @@
                         <button class="__dt_btn" id="__dt_remove">Remove</button>
                         <button class="__dt_btn" id="__dt_copy">Copy HTML</button>
                     </div>
+                    <button class="__dt_btn" id="__dt_copyselector">📋 Copy Selector</button>
                 </div>
             </div>
             <div class="__dt_resize_r"></div>
@@ -285,7 +281,7 @@
         </div>
 
         <!-- STYLES PANEL -->
-        <div class="__dt_panel hidden" id="__dt_styles" style="top:80px;left:320px;width:260px;height:360px;">
+        <div class="__dt_panel hidden" id="__dt_styles" style="top:80px;left:320px;width:280px;height:480px;">
             <div class="__dt_header">
                 <span class="__dt_title">Styles</span>
                 <div class="__dt_btns">
@@ -305,6 +301,19 @@
                     <div class="__dt_val" id="__dt_heightval">auto</div>
                 </div>
                 <div class="__dt_section">
+                    <div class="__dt_label">Spacing</div>
+                    <div class="__dt_row">
+                        <div>
+                            <div class="__dt_clabel">Padding</div>
+                            <input type="number" class="__dt_input" id="__dt_padding" value="0" min="0" max="100">
+                        </div>
+                        <div>
+                            <div class="__dt_clabel">Margin</div>
+                            <input type="number" class="__dt_input" id="__dt_margin" value="0" min="0" max="100">
+                        </div>
+                    </div>
+                </div>
+                <div class="__dt_section">
                     <div class="__dt_label">Colors</div>
                     <div class="__dt_row">
                         <div><div class="__dt_clabel">Background</div><input type="color" class="__dt_input __dt_color" id="__dt_bg" value="#111111"></div>
@@ -317,8 +326,20 @@
                         <div><div class="__dt_clabel">Color</div><input type="color" class="__dt_input __dt_color" id="__dt_border" value="#00ffff"></div>
                         <div><div class="__dt_clabel">Width</div><input type="number" class="__dt_input" id="__dt_borderw" value="0" min="0" max="20"></div>
                     </div>
+                    <div class="__dt_clabel" style="margin-top:6px">Radius</div>
+                    <input type="range" class="__dt_range" id="__dt_radius" min="0" max="50" value="0">
+                    <div class="__dt_val" id="__dt_radiusval">0px</div>
                 </div>
-                <button class="__dt_btn" id="__dt_export">📤 Export CSS</button>
+                <div class="__dt_section">
+                    <div class="__dt_label">Effects</div>
+                    <div class="__dt_clabel">Opacity</div>
+                    <input type="range" class="__dt_range" id="__dt_opacity" min="0" max="100" value="100">
+                    <div class="__dt_val" id="__dt_opacityval">100%</div>
+                </div>
+                <div class="__dt_row">
+                    <button class="__dt_btn" id="__dt_undo">↩ Undo <span class="__dt_kbd">Z</span></button>
+                    <button class="__dt_btn" id="__dt_export">📤 Export</button>
+                </div>
             </div>
             <div class="__dt_resize_r"></div>
             <div class="__dt_resize_c"></div>
@@ -371,25 +392,90 @@
             <div class="__dt_resize"></div>
         </div>
 
+        <!-- SETTINGS PANEL -->
+        <div class="__dt_panel hidden" id="__dt_settings" style="top:100px;right:100px;width:280px;height:320px;">
+            <div class="__dt_header">
+                <span class="__dt_title">Settings</span>
+                <div class="__dt_btns">
+                    <button class="__dt_hbtn __dt_transtoggle">◐</button>
+                    <button class="__dt_hbtn __dt_mintoggle">−</button>
+                    <button class="__dt_hbtn close __dt_closepanel">×</button>
+                </div>
+            </div>
+            <div class="__dt_body">
+                <div class="__dt_section">
+                    <div class="__dt_label">Theme Color</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                        <button class="__dt_preset" data-color="#00ffff" style="background:#00ffff" title="Cyan"></button>
+                        <button class="__dt_preset" data-color="#ff00ff" style="background:#ff00ff" title="Magenta"></button>
+                        <button class="__dt_preset" data-color="#00ff00" style="background:#00ff00" title="Green"></button>
+                        <button class="__dt_preset" data-color="#ff6600" style="background:#ff6600" title="Orange"></button>
+                        <button class="__dt_preset" data-color="#ff0066" style="background:#ff0066" title="Pink"></button>
+                        <button class="__dt_preset" data-color="#6600ff" style="background:#6600ff" title="Purple"></button>
+                        <button class="__dt_preset" data-color="#ffff00" style="background:#ffff00" title="Yellow"></button>
+                        <button class="__dt_preset" data-color="#ffffff" style="background:#ffffff" title="White"></button>
+                    </div>
+                    <div class="__dt_clabel">Custom Color</div>
+                    <input type="color" class="__dt_input __dt_color" id="__dt_theme_accent" value="${settings.theme.accent}">
+                </div>
+                <div class="__dt_section">
+                    <div class="__dt_label">Actions</div>
+                    <button class="__dt_btn" id="__dt_reset_settings">🔄 Reset to Defaults</button>
+                    <button class="__dt_btn" id="__dt_reset_positions">📐 Reset Panel Positions</button>
+                </div>
+            </div>
+            <div class="__dt_resize_r"></div>
+            <div class="__dt_resize_c"></div>
+            <div class="__dt_resize"></div>
+        </div>
+
+        <!-- SHORTCUTS PANEL -->
+        <div class="__dt_panel hidden" id="__dt_shortcuts" style="top:120px;left:200px;width:260px;height:280px;">
+            <div class="__dt_header">
+                <span class="__dt_title">Keyboard Shortcuts</span>
+                <div class="__dt_btns">
+                    <button class="__dt_hbtn __dt_transtoggle">◐</button>
+                    <button class="__dt_hbtn __dt_mintoggle">−</button>
+                    <button class="__dt_hbtn close __dt_closepanel">×</button>
+                </div>
+            </div>
+            <div class="__dt_body">
+                <div class="__dt_shortcut"><span>Toggle DevTools</span><span class="__dt_kbd">Esc</span></div>
+                <div class="__dt_shortcut"><span>Pick Element</span><span class="__dt_kbd">P</span></div>
+                <div class="__dt_shortcut"><span>Undo Style Change</span><span class="__dt_kbd">Ctrl+Z</span></div>
+                <div class="__dt_shortcut"><span>Hide Selected</span><span class="__dt_kbd">H</span></div>
+                <div class="__dt_shortcut"><span>Show Selected</span><span class="__dt_kbd">S</span></div>
+                <div class="__dt_shortcut"><span>Delete Selected</span><span class="__dt_kbd">Del</span></div>
+                <div class="__dt_shortcut"><span>Copy Selector</span><span class="__dt_kbd">C</span></div>
+                <div class="__dt_shortcut"><span>Outline All</span><span class="__dt_kbd">O</span></div>
+            </div>
+            <div class="__dt_resize_r"></div>
+            <div class="__dt_resize_c"></div>
+            <div class="__dt_resize"></div>
+        </div>
+
         <div id="__dt_hover"></div>
+        <div id="__dt_snap_preview"></div>
     `;
     document.body.appendChild(d);
 
-    // State
+    // Apply theme
+    updateThemeCSS();
+
+    // ==========================================
+    // STATE
+    // ==========================================
     let sel = null;
     let pick = false;
     let zIndex = 2147483647;
 
-    // Snap zones preview
-    const snapPreview = document.createElement('div');
-    snapPreview.id = '__dt_snap_preview';
-    snapPreview.style.cssText = 'position:fixed;background:rgba(0,255,255,0.15);border:2px dashed #00ffff;display:none;z-index:2147483645;pointer-events:none;transition:all 0.1s ease;';
-    d.appendChild(snapPreview);
-
-    // Panel dragging & resizing
+    // ==========================================
+    // PANEL CLASS
+    // ==========================================
     class Panel {
         constructor(el) {
             this.el = el;
+            this.id = el.id;
             this.header = el.querySelector('.__dt_header');
             this.drag = false;
             this.resize = null;
@@ -397,7 +483,31 @@
             this.startW = 0; this.startH = 0;
             this.startX = 0; this.startY = 0;
             this.init();
+            this.restorePosition();
         }
+
+        restorePosition() {
+            if (settings.panels[this.id]) {
+                const p = settings.panels[this.id];
+                this.el.style.left = p.left;
+                this.el.style.top = p.top;
+                this.el.style.width = p.width;
+                this.el.style.height = p.height;
+                this.el.style.right = 'auto';
+                this.el.style.bottom = 'auto';
+            }
+        }
+
+        savePosition() {
+            settings.panels[this.id] = {
+                left: this.el.style.left,
+                top: this.el.style.top,
+                width: this.el.style.width,
+                height: this.el.style.height
+            };
+            saveSettings();
+        }
+
         init() {
             this.header.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.__dt_hbtn')) return;
@@ -426,18 +536,15 @@
             resizeR?.addEventListener('mousedown', (e) => startResize(e, 'w'));
             resizeC?.addEventListener('mousedown', (e) => startResize(e, 'both'));
 
-            // Transparent toggle
             this.el.querySelector('.__dt_transtoggle')?.addEventListener('click', (e) => {
                 this.el.classList.toggle('transparent');
                 e.target.classList.toggle('active');
             });
 
-            // Minimize toggle
             this.el.querySelector('.__dt_mintoggle')?.addEventListener('click', () => {
                 this.el.classList.toggle('minimized');
             });
 
-            // Close (hide)
             this.el.querySelector('.__dt_closepanel')?.addEventListener('click', () => {
                 this.el.classList.add('hidden');
             });
@@ -446,18 +553,17 @@
                 this.el.style.zIndex = ++zIndex;
             });
         }
+
         getSnapZone(x, y) {
-            const edge = 40; // Edge detection zone
+            const edge = 40;
             const vw = window.innerWidth;
             const vh = window.innerHeight;
 
-            // Corners first (they overlap edges)
             if (x <= edge && y <= edge) return 'top-left';
             if (x >= vw - edge && y <= edge) return 'top-right';
             if (x <= edge && y >= vh - edge) return 'bottom-left';
             if (x >= vw - edge && y >= vh - edge) return 'bottom-right';
 
-            // Edges
             if (x <= edge) return 'left';
             if (x >= vw - edge) return 'right';
             if (y <= edge) return 'top';
@@ -469,16 +575,16 @@
         showSnapPreview(zone) {
             const vw = window.innerWidth;
             const vh = window.innerHeight;
-            const p = snapPreview;
+            const p = d.querySelector('#__dt_snap_preview');
 
             const zones = {
-                'left':         { left: 0, top: 0, width: vw/2, height: vh },
-                'right':        { left: vw/2, top: 0, width: vw/2, height: vh },
-                'top':          { left: 0, top: 0, width: vw, height: vh/2 },
-                'bottom':       { left: 0, top: vh/2, width: vw, height: vh/2 },
-                'top-left':     { left: 0, top: 0, width: vw/2, height: vh/2 },
-                'top-right':    { left: vw/2, top: 0, width: vw/2, height: vh/2 },
-                'bottom-left':  { left: 0, top: vh/2, width: vw/2, height: vh/2 },
+                'left': { left: 0, top: 0, width: vw/2, height: vh },
+                'right': { left: vw/2, top: 0, width: vw/2, height: vh },
+                'top': { left: 0, top: 0, width: vw, height: vh/2 },
+                'bottom': { left: 0, top: vh/2, width: vw, height: vh/2 },
+                'top-left': { left: 0, top: 0, width: vw/2, height: vh/2 },
+                'top-right': { left: vw/2, top: 0, width: vw/2, height: vh/2 },
+                'bottom-left': { left: 0, top: vh/2, width: vw/2, height: vh/2 },
                 'bottom-right': { left: vw/2, top: vh/2, width: vw/2, height: vh/2 }
             };
 
@@ -498,24 +604,21 @@
             const vw = window.innerWidth;
             const vh = window.innerHeight;
 
-            // Store original size for restore
             if (!this.originalSize) {
                 this.originalSize = {
                     width: this.el.offsetWidth,
-                    height: this.el.offsetHeight,
-                    left: this.el.offsetLeft,
-                    top: this.el.offsetTop
+                    height: this.el.offsetHeight
                 };
             }
 
             const zones = {
-                'left':         { left: 0, top: 0, width: vw/2, height: vh },
-                'right':        { left: vw/2, top: 0, width: vw/2, height: vh },
-                'top':          { left: 0, top: 0, width: vw, height: vh/2 },
-                'bottom':       { left: 0, top: vh/2, width: vw, height: vh/2 },
-                'top-left':     { left: 0, top: 0, width: vw/2, height: vh/2 },
-                'top-right':    { left: vw/2, top: 0, width: vw/2, height: vh/2 },
-                'bottom-left':  { left: 0, top: vh/2, width: vw/2, height: vh/2 },
+                'left': { left: 0, top: 0, width: vw/2, height: vh },
+                'right': { left: vw/2, top: 0, width: vw/2, height: vh },
+                'top': { left: 0, top: 0, width: vw, height: vh/2 },
+                'bottom': { left: 0, top: vh/2, width: vw, height: vh/2 },
+                'top-left': { left: 0, top: 0, width: vw/2, height: vh/2 },
+                'top-right': { left: vw/2, top: 0, width: vw/2, height: vh/2 },
+                'bottom-left': { left: 0, top: vh/2, width: vw/2, height: vh/2 },
                 'bottom-right': { left: vw/2, top: vh/2, width: vw/2, height: vh/2 }
             };
 
@@ -533,7 +636,6 @@
 
         onMove(e) {
             if (this.drag) {
-                // Restore original size when dragging a snapped panel
                 if (this.snapped && this.originalSize) {
                     this.el.style.width = this.originalSize.width + 'px';
                     this.el.style.height = this.originalSize.height + 'px';
@@ -548,7 +650,6 @@
                 this.el.style.right = 'auto';
                 this.el.style.bottom = 'auto';
 
-                // Show snap preview
                 const zone = this.getSnapZone(e.clientX, e.clientY);
                 this.pendingSnap = zone;
                 this.showSnapPreview(zone);
@@ -564,14 +665,18 @@
                 }
             }
         }
+
         onUp() {
             if (this.drag && this.pendingSnap) {
                 this.snapToZone(this.pendingSnap);
             }
+            if (this.drag || this.resize) {
+                this.savePosition();
+            }
             this.drag = false;
             this.resize = null;
             this.pendingSnap = null;
-            snapPreview.style.display = 'none';
+            d.querySelector('#__dt_snap_preview').style.display = 'none';
         }
     }
 
@@ -580,13 +685,13 @@
     document.addEventListener('mousemove', (e) => panels.forEach(p => p.onMove(e)));
     document.addEventListener('mouseup', () => panels.forEach(p => p.onUp()));
 
-    // Close main = remove all
+    // ==========================================
+    // UI CONTROLS
+    // ==========================================
     d.querySelector('.__dt_closemain').onclick = () => {
-        d.remove();
-        window.__devtools = null;
+        d.querySelector('#__dt_hub').classList.add('hidden');
     };
 
-    // Tool buttons open panels
     d.querySelectorAll('.__dt_tool').forEach(btn => {
         btn.onclick = () => {
             const panel = d.querySelector('#' + btn.dataset.panel);
@@ -595,25 +700,56 @@
         };
     });
 
-    // Close all panels
     d.querySelector('#__dt_closeall').onclick = () => {
         d.querySelectorAll('.__dt_panel').forEach(p => {
             if (p.id !== '__dt_hub') p.classList.add('hidden');
         });
     };
 
-    // Hover box
-    const hoverBox = d.querySelector('#__dt_hover');
+    // ==========================================
+    // HELPER FUNCTIONS
+    // ==========================================
+    const getSelector = (el) => {
+        if (el.id) return '#' + el.id;
+        if (el.className && typeof el.className === 'string') {
+            const classes = el.className.split(' ').filter(c => c && !c.startsWith('__dt'));
+            if (classes.length) return el.tagName.toLowerCase() + '.' + classes.join('.');
+        }
+        return el.tagName.toLowerCase();
+    };
 
-    // Pick element
+    const pushHistory = () => {
+        if (sel) {
+            styleHistory.splice(historyIndex + 1);
+            styleHistory.push({ el: sel, style: sel.style.cssText });
+            historyIndex = styleHistory.length - 1;
+        }
+    };
+
+    const undo = () => {
+        if (historyIndex >= 0) {
+            const h = styleHistory[historyIndex];
+            h.el.style.cssText = h.style;
+            historyIndex--;
+            log('Undone');
+        }
+    };
+
+    // ==========================================
+    // INSPECTOR
+    // ==========================================
+    const hoverBox = d.querySelector('#__dt_hover');
     const pickBtn = d.querySelector('#__dt_pick');
-    pickBtn.onclick = () => {
+
+    const startPick = () => {
         pick = !pick;
         pickBtn.classList.toggle('active');
-        pickBtn.textContent = pick ? '🎯 Click element...' : '👆 Pick Element';
+        pickBtn.innerHTML = pick ? '🎯 Click element... <span class="__dt_kbd">P</span>' : '👆 Pick Element <span class="__dt_kbd">P</span>';
         document.body.style.cursor = pick ? 'crosshair' : '';
         if (!pick) hoverBox.style.display = 'none';
     };
+
+    pickBtn.onclick = startPick;
 
     document.addEventListener('mouseover', (e) => {
         if (!pick) return;
@@ -639,80 +775,112 @@
             modifiedElements.set(sel, sel.style.cssText);
         }
 
-        sel.style.outline = '2px solid #00ffff';
+        sel.style.outline = `2px solid ${settings.theme.accent}`;
 
-        const tag = sel.tagName.toLowerCase();
-        const id = sel.id ? '#' + sel.id : '';
-        const cls = (sel.className && typeof sel.className === 'string') ? '.' + sel.className.split(' ').filter(c=>c).join('.') : '';
+        const selector = getSelector(sel);
         const rect = sel.getBoundingClientRect();
 
-        d.querySelector('#__dt_info').innerHTML = `<b>${tag}${id}${cls}</b><br>Size: ${Math.round(rect.width)} × ${Math.round(rect.height)}<br>Pos: ${Math.round(rect.left)}, ${Math.round(rect.top)}`;
+        d.querySelector('#__dt_info').innerHTML = `<b>${selector}</b><br>Size: ${Math.round(rect.width)} × ${Math.round(rect.height)}<br>Pos: ${Math.round(rect.left)}, ${Math.round(rect.top)}`;
 
-        // Update style controls
         const cs = getComputedStyle(sel);
         d.querySelector('#__dt_width').value = parseInt(cs.width) || 0;
         d.querySelector('#__dt_widthval').textContent = cs.width;
         d.querySelector('#__dt_height').value = parseInt(cs.height) || 0;
         d.querySelector('#__dt_heightval').textContent = cs.height;
+        d.querySelector('#__dt_padding').value = parseInt(cs.padding) || 0;
+        d.querySelector('#__dt_margin').value = parseInt(cs.margin) || 0;
+        d.querySelector('#__dt_radius').value = parseInt(cs.borderRadius) || 0;
+        d.querySelector('#__dt_radiusval').textContent = cs.borderRadius || '0px';
+        d.querySelector('#__dt_opacity').value = Math.round(parseFloat(cs.opacity) * 100);
+        d.querySelector('#__dt_opacityval').textContent = Math.round(parseFloat(cs.opacity) * 100) + '%';
 
         pick = false;
         pickBtn.classList.remove('active');
-        pickBtn.textContent = '👆 Pick Element';
+        pickBtn.innerHTML = '👆 Pick Element <span class="__dt_kbd">P</span>';
         document.body.style.cursor = '';
         hoverBox.style.display = 'none';
     }, true);
 
     // Actions
-    d.querySelector('#__dt_hide').onclick = () => { if (sel) sel.style.display = 'none'; };
-    d.querySelector('#__dt_show').onclick = () => { if (sel) sel.style.display = ''; };
-    d.querySelector('#__dt_remove').onclick = () => { if (sel) { sel.remove(); sel = null; d.querySelector('#__dt_info').innerHTML = 'Removed'; }};
-    d.querySelector('#__dt_copy').onclick = () => { if (sel) { navigator.clipboard.writeText(sel.outerHTML); d.querySelector('#__dt_info').innerHTML += '<br><i>Copied!</i>'; }};
+    d.querySelector('#__dt_hide').onclick = () => { if (sel) { pushHistory(); sel.style.display = 'none'; } };
+    d.querySelector('#__dt_show').onclick = () => { if (sel) { pushHistory(); sel.style.display = ''; } };
+    d.querySelector('#__dt_remove').onclick = () => { if (sel) { sel.remove(); sel = null; d.querySelector('#__dt_info').innerHTML = 'Removed'; } };
+    d.querySelector('#__dt_copy').onclick = () => { if (sel) { navigator.clipboard.writeText(sel.outerHTML); d.querySelector('#__dt_info').innerHTML += '<br><i>HTML Copied!</i>'; } };
+    d.querySelector('#__dt_copyselector').onclick = () => {
+        if (sel) {
+            const selector = getSelector(sel);
+            navigator.clipboard.writeText(selector);
+            d.querySelector('#__dt_info').innerHTML += '<br><i>Selector Copied!</i>';
+        }
+    };
 
-    // Outline all
     d.querySelector('#__dt_outlineall').onclick = function() {
         const all = document.querySelectorAll('body *:not(#__devtools_main):not(#__devtools_main *)');
         const has = this.textContent.includes('Clear');
-        all.forEach(el => { el.style.outline = has ? '' : '1px solid rgba(0,255,255,0.3)'; });
+        all.forEach(el => { el.style.outline = has ? '' : `1px solid ${accentRGB(0.3)}`; });
         this.textContent = has ? 'Outline All' : 'Clear Outlines';
     };
 
-    // Style controls
+    // ==========================================
+    // STYLES
+    // ==========================================
+    const applyStyle = (prop, value) => {
+        if (sel) {
+            pushHistory();
+            sel.style[prop] = value;
+        }
+    };
+
     d.querySelector('#__dt_width').oninput = (e) => {
         const v = e.target.value;
         d.querySelector('#__dt_widthval').textContent = v == 0 ? 'auto' : v + 'px';
-        if (sel) sel.style.width = v == 0 ? '' : v + 'px';
+        applyStyle('width', v == 0 ? '' : v + 'px');
     };
     d.querySelector('#__dt_height').oninput = (e) => {
         const v = e.target.value;
         d.querySelector('#__dt_heightval').textContent = v == 0 ? 'auto' : v + 'px';
-        if (sel) sel.style.height = v == 0 ? '' : v + 'px';
+        applyStyle('height', v == 0 ? '' : v + 'px');
     };
-    d.querySelector('#__dt_bg').oninput = (e) => { if (sel) sel.style.backgroundColor = e.target.value; };
-    d.querySelector('#__dt_fg').oninput = (e) => { if (sel) sel.style.color = e.target.value; };
-    d.querySelector('#__dt_border').oninput = (e) => { if (sel) sel.style.borderColor = e.target.value; };
-    d.querySelector('#__dt_borderw').oninput = (e) => { if (sel) sel.style.border = e.target.value + 'px solid ' + d.querySelector('#__dt_border').value; };
+    d.querySelector('#__dt_padding').oninput = (e) => applyStyle('padding', e.target.value + 'px');
+    d.querySelector('#__dt_margin').oninput = (e) => applyStyle('margin', e.target.value + 'px');
+    d.querySelector('#__dt_bg').oninput = (e) => applyStyle('backgroundColor', e.target.value);
+    d.querySelector('#__dt_fg').oninput = (e) => applyStyle('color', e.target.value);
+    d.querySelector('#__dt_border').oninput = (e) => applyStyle('borderColor', e.target.value);
+    d.querySelector('#__dt_borderw').oninput = (e) => applyStyle('border', e.target.value + 'px solid ' + d.querySelector('#__dt_border').value);
+    d.querySelector('#__dt_radius').oninput = (e) => {
+        d.querySelector('#__dt_radiusval').textContent = e.target.value + 'px';
+        applyStyle('borderRadius', e.target.value + 'px');
+    };
+    d.querySelector('#__dt_opacity').oninput = (e) => {
+        d.querySelector('#__dt_opacityval').textContent = e.target.value + '%';
+        applyStyle('opacity', e.target.value / 100);
+    };
 
-    // Export CSS
+    d.querySelector('#__dt_undo').onclick = undo;
+
     d.querySelector('#__dt_export').onclick = () => {
         if (modifiedElements.size === 0) { alert('No modifications'); return; }
-        let css = '/* PKN Dev Tools Export */\n\n';
+        let css = '/* Dev Tools Export */\n\n';
         modifiedElements.forEach((orig, el) => {
             if (!document.contains(el)) return;
-            const selector = el.id ? '#' + el.id : el.className ? '.' + el.className.split(' ')[0] : el.tagName.toLowerCase();
+            const selector = getSelector(el);
             const styles = el.style.cssText.replace(/outline[^;]*;?/gi, '').trim();
-            if (styles) css += `${selector} {\n    ${styles.split(';').filter(s=>s.trim()).join(';\n    ')};\n}\n\n`;
+            if (styles) css += `${selector} {\n    ${styles.split(';').filter(s => s.trim()).join(';\n    ')};\n}\n\n`;
         });
-        const blob = new Blob([css], {type: 'text/css'});
+        const blob = new Blob([css], { type: 'text/css' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'devtools-export.css';
         a.click();
     };
 
-    // Console
+    // ==========================================
+    // CONSOLE
+    // ==========================================
     const logs = d.querySelector('#__dt_logs');
     const log = (msg, type = '') => {
-        logs.innerHTML += `<div style="color:${type === 'error' ? '#ff4444' : type === 'warn' ? '#ffa500' : '#00ffff'}">${msg}</div>`;
+        const color = type === 'error' ? '#ff4444' : type === 'warn' ? '#ffa500' : settings.theme.accent;
+        logs.innerHTML += `<div style="color:${color}">${msg}</div>`;
         logs.scrollTop = logs.scrollHeight;
     };
 
@@ -728,7 +896,9 @@
     d.querySelector('#__dt_eval').onkeydown = (e) => { if (e.key === 'Enter') d.querySelector('#__dt_run').click(); };
     d.querySelector('#__dt_clear').onclick = () => { logs.innerHTML = ''; };
 
-    // Element search
+    // ==========================================
+    // ELEMENT SEARCH
+    // ==========================================
     d.querySelector('#__dt_searchbtn').onclick = () => {
         const q = d.querySelector('#__dt_search').value.trim();
         if (!q) return;
@@ -739,16 +909,14 @@
             results.innerHTML = '';
             els.forEach((el, i) => {
                 if (el.closest('#__devtools_main')) return;
-                const tag = el.tagName.toLowerCase();
-                const id = el.id ? '#' + el.id : '';
-                const cls = el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : '';
+                const selector = getSelector(el);
                 const item = document.createElement('div');
                 item.style.cssText = 'padding:4px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.1)';
-                item.textContent = `${i+1}. ${tag}${id}${cls}`;
+                item.textContent = `${i + 1}. ${selector}`;
                 item.onclick = () => {
                     if (sel) sel.style.outline = '';
                     sel = el;
-                    sel.style.outline = '2px solid #00ffff';
+                    sel.style.outline = `2px solid ${settings.theme.accent}`;
                     sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 };
                 results.appendChild(item);
@@ -756,13 +924,98 @@
         } catch (e) { results.innerHTML = `<div style="color:#ff4444">${e.message}</div>`; }
     };
 
-    // Global
+    // ==========================================
+    // SETTINGS
+    // ==========================================
+    const setTheme = (color) => {
+        settings.theme.accent = color;
+        d.querySelector('#__dt_theme_accent').value = color;
+        updateThemeCSS();
+        saveSettings();
+
+        // Update preset buttons
+        d.querySelectorAll('.__dt_preset').forEach(p => {
+            p.classList.toggle('active', p.dataset.color === color);
+        });
+
+        // Update selection outline
+        if (sel) sel.style.outline = `2px solid ${color}`;
+    };
+
+    d.querySelectorAll('.__dt_preset').forEach(btn => {
+        if (btn.dataset.color === settings.theme.accent) btn.classList.add('active');
+        btn.onclick = () => setTheme(btn.dataset.color);
+    });
+
+    d.querySelector('#__dt_theme_accent').oninput = (e) => setTheme(e.target.value);
+
+    d.querySelector('#__dt_reset_settings').onclick = () => {
+        settings = { ...defaultSettings };
+        setTheme(defaultSettings.theme.accent);
+        log('Settings reset');
+    };
+
+    d.querySelector('#__dt_reset_positions').onclick = () => {
+        settings.panels = {};
+        saveSettings();
+        location.reload();
+    };
+
+    // ==========================================
+    // KEYBOARD SHORTCUTS
+    // ==========================================
+    document.addEventListener('keydown', (e) => {
+        // Don't trigger if typing in input
+        if (e.target.closest('input, textarea')) return;
+        if (e.target.closest('#__devtools_main') && e.target.tagName === 'INPUT') return;
+
+        const key = e.key.toLowerCase();
+
+        if (key === 'escape') {
+            const hub = d.querySelector('#__dt_hub');
+            hub.classList.toggle('hidden');
+        }
+        else if (key === 'p' && !e.ctrlKey) {
+            startPick();
+        }
+        else if (key === 'z' && e.ctrlKey) {
+            e.preventDefault();
+            undo();
+        }
+        else if (key === 'h' && sel) {
+            pushHistory();
+            sel.style.display = 'none';
+        }
+        else if (key === 's' && !e.ctrlKey && sel) {
+            pushHistory();
+            sel.style.display = '';
+        }
+        else if (key === 'delete' && sel) {
+            sel.remove();
+            sel = null;
+        }
+        else if (key === 'c' && !e.ctrlKey && sel) {
+            const selector = getSelector(sel);
+            navigator.clipboard.writeText(selector);
+            log('Selector copied: ' + selector);
+        }
+        else if (key === 'o' && !e.ctrlKey) {
+            d.querySelector('#__dt_outlineall').click();
+        }
+    });
+
+    // ==========================================
+    // GLOBAL API
+    // ==========================================
     window.__devtools = {
         toggle: () => {
             const hub = d.querySelector('#__dt_hub');
             hub.classList.toggle('hidden');
-        }
+        },
+        setTheme: setTheme,
+        settings: settings
     };
 
-    log('Dev Tools ready');
+    log('Dev Tools v2.0 ready');
+    log('Press Esc to toggle, P to pick');
 })();
