@@ -179,16 +179,21 @@
             .__dt_input:focus { outline: none; }
 
             .__dt_tool {
-                padding: 14px 10px;
+                padding: 10px 6px;
                 border: 1px solid;
                 border-radius: 8px;
                 cursor: pointer;
                 font-family: inherit;
-                font-size: 10px;
+                font-size: 9px;
                 text-align: center;
                 transition: all 0.2s;
+                min-height: 60px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
             }
-            .__dt_tool_icon { font-size: 20px; display: block; margin-bottom: 4px; }
+            .__dt_tool_icon { font-size: 18px; display: block; margin-bottom: 3px; }
             .__dt_grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
             #__dt_hover { position: fixed; border: 2px dashed; pointer-events: none; z-index: 2147483646; display: none; }
@@ -233,7 +238,7 @@
         <style id="__dt_theme_style"></style>
 
         <!-- MAIN HUB PANEL -->
-        <div class="__dt_panel" id="__dt_hub" style="top:20px;right:20px;width:240px;height:360px;">
+        <div class="__dt_panel" id="__dt_hub" style="top:20px;right:20px;width:240px;height:420px;">
             <div class="__dt_header">
                 <span class="__dt_title">Dev Tools</span>
                 <div class="__dt_btns">
