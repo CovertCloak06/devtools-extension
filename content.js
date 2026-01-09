@@ -1,4 +1,4 @@
-// PKN Dev Tools - Full Featured Chrome Extension v2.0
+// PKN Dev Tools - Full Featured Chrome Extension v2.1
 (function() {
     // Toggle if already exists
     if (window.__devtools) {
@@ -208,6 +208,27 @@
             .__dt_preset { width: 24px; height: 24px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; }
             .__dt_preset:hover { border-color: white; }
             .__dt_preset.active { border-color: white; box-shadow: 0 0 8px currentColor; }
+
+            .__dt_net_item { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; font-size: 10px; display: flex; gap: 8px; align-items: center; }
+            .__dt_net_item:hover { background: rgba(255,255,255,0.05); }
+            .__dt_net_item.error { color: #ff4444; }
+            .__dt_net_item.pending { opacity: 0.6; }
+            .__dt_net_method { font-weight: bold; min-width: 35px; }
+            .__dt_net_status { min-width: 30px; text-align: center; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+            .__dt_net_status.s2xx { background: rgba(0,255,0,0.2); color: #0f0; }
+            .__dt_net_status.s3xx { background: rgba(0,255,255,0.2); color: #0ff; }
+            .__dt_net_status.s4xx { background: rgba(255,165,0,0.2); color: #ffa500; }
+            .__dt_net_status.s5xx { background: rgba(255,0,0,0.2); color: #f44; }
+            .__dt_net_url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #888; }
+            .__dt_net_time { min-width: 45px; text-align: right; color: #666; }
+            .__dt_net_size { min-width: 50px; text-align: right; color: #666; }
+            .__dt_net_filter { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+            .__dt_net_filter_btn { padding: 3px 8px; font-size: 9px; border-radius: 3px; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #888; }
+            .__dt_net_filter_btn:hover { border-color: rgba(255,255,255,0.4); }
+            .__dt_net_filter_btn.active { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.4); }
+            .__dt_net_detail { background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; font-size: 9px; margin-top: 8px; max-height: 150px; overflow-y: auto; word-break: break-all; }
+            .__dt_net_detail_title { font-weight: bold; margin-bottom: 4px; }
+            .__dt_net_header { display: flex; justify-content: space-between; padding: 4px 8px; background: rgba(0,0,0,0.2); font-size: 9px; color: #666; border-bottom: 1px solid rgba(255,255,255,0.1); }
         </style>
         <style id="__dt_theme_style"></style>
 
@@ -229,6 +250,7 @@
                         <button class="__dt_tool" data-panel="__dt_styles"><span class="__dt_tool_icon">🎨</span>Styles</button>
                         <button class="__dt_tool" data-panel="__dt_console"><span class="__dt_tool_icon">🖥</span>Console</button>
                         <button class="__dt_tool" data-panel="__dt_elements"><span class="__dt_tool_icon">📦</span>Elements</button>
+                        <button class="__dt_tool" data-panel="__dt_network"><span class="__dt_tool_icon">🌐</span>Network</button>
                         <button class="__dt_tool" data-panel="__dt_settings"><span class="__dt_tool_icon">⚙️</span>Settings</button>
                         <button class="__dt_tool" data-panel="__dt_shortcuts"><span class="__dt_tool_icon">⌨️</span>Shortcuts</button>
                     </div>
@@ -448,6 +470,41 @@
                 <div class="__dt_shortcut"><span>Delete Selected</span><span class="__dt_kbd">Del</span></div>
                 <div class="__dt_shortcut"><span>Copy Selector</span><span class="__dt_kbd">C</span></div>
                 <div class="__dt_shortcut"><span>Outline All</span><span class="__dt_kbd">O</span></div>
+            </div>
+            <div class="__dt_resize_r"></div>
+            <div class="__dt_resize_c"></div>
+            <div class="__dt_resize"></div>
+        </div>
+
+        <!-- NETWORK PANEL -->
+        <div class="__dt_panel hidden" id="__dt_network" style="bottom:20px;right:20px;width:500px;height:350px;">
+            <div class="__dt_header">
+                <span class="__dt_title">Network</span>
+                <div class="__dt_btns">
+                    <button class="__dt_hbtn __dt_transtoggle">◐</button>
+                    <button class="__dt_hbtn __dt_mintoggle">−</button>
+                    <button class="__dt_hbtn close __dt_closepanel">×</button>
+                </div>
+            </div>
+            <div class="__dt_body" style="padding:8px;">
+                <div class="__dt_net_filter">
+                    <button class="__dt_net_filter_btn active" data-filter="all">All</button>
+                    <button class="__dt_net_filter_btn" data-filter="fetch">Fetch</button>
+                    <button class="__dt_net_filter_btn" data-filter="xhr">XHR</button>
+                    <button class="__dt_net_filter_btn" data-filter="img">Img</button>
+                    <button class="__dt_net_filter_btn" data-filter="js">JS</button>
+                    <button class="__dt_net_filter_btn" data-filter="css">CSS</button>
+                    <button class="__dt_btn" id="__dt_net_clear" style="margin-left:auto;width:auto;padding:3px 10px;margin-bottom:0">Clear</button>
+                </div>
+                <div class="__dt_net_header">
+                    <span style="min-width:35px">Method</span>
+                    <span style="min-width:30px">Status</span>
+                    <span style="flex:1">URL</span>
+                    <span style="min-width:45px;text-align:right">Time</span>
+                    <span style="min-width:50px;text-align:right">Size</span>
+                </div>
+                <div id="__dt_net_list" style="max-height:180px;overflow-y:auto;background:rgba(0,0,0,0.2);border-radius:0 0 4px 4px;"></div>
+                <div id="__dt_net_detail" class="__dt_net_detail" style="display:none;"></div>
             </div>
             <div class="__dt_resize_r"></div>
             <div class="__dt_resize_c"></div>
@@ -1005,6 +1062,207 @@
     });
 
     // ==========================================
+    // NETWORK INTERCEPTOR
+    // ==========================================
+    const networkRequests = [];
+    let networkFilter = 'all';
+    const netList = d.querySelector('#__dt_net_list');
+    const netDetail = d.querySelector('#__dt_net_detail');
+
+    const formatSize = (bytes) => {
+        if (bytes === 0 || bytes === undefined) return '-';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
+    const formatTime = (ms) => {
+        if (ms === undefined) return '-';
+        if (ms < 1000) return Math.round(ms) + 'ms';
+        return (ms / 1000).toFixed(2) + 's';
+    };
+
+    const getRequestType = (url, initiator) => {
+        if (initiator === 'fetch') return 'fetch';
+        if (initiator === 'xhr') return 'xhr';
+        const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'].includes(ext)) return 'img';
+        if (['js', 'mjs'].includes(ext)) return 'js';
+        if (ext === 'css') return 'css';
+        return 'other';
+    };
+
+    const renderNetworkList = () => {
+        const filtered = networkFilter === 'all'
+            ? networkRequests
+            : networkRequests.filter(r => r.type === networkFilter);
+
+        netList.innerHTML = filtered.map((req, i) => {
+            const statusClass = req.status ?
+                (req.status < 300 ? 's2xx' : req.status < 400 ? 's3xx' : req.status < 500 ? 's4xx' : 's5xx') : '';
+            const errorClass = req.error ? 'error' : '';
+            const pendingClass = req.pending ? 'pending' : '';
+
+            return `<div class="__dt_net_item ${errorClass} ${pendingClass}" data-index="${i}">
+                <span class="__dt_net_method">${req.method}</span>
+                <span class="__dt_net_status ${statusClass}">${req.status || (req.pending ? '...' : 'ERR')}</span>
+                <span class="__dt_net_url" title="${req.url}">${req.url.replace(/^https?:\/\/[^/]+/, '')}</span>
+                <span class="__dt_net_time">${formatTime(req.duration)}</span>
+                <span class="__dt_net_size">${formatSize(req.size)}</span>
+            </div>`;
+        }).join('');
+
+        // Add click handlers for detail view
+        netList.querySelectorAll('.__dt_net_item').forEach(item => {
+            item.onclick = () => {
+                const req = filtered[parseInt(item.dataset.index)];
+                showNetDetail(req);
+            };
+        });
+    };
+
+    const showNetDetail = (req) => {
+        netDetail.style.display = 'block';
+        netDetail.innerHTML = `
+            <div class="__dt_net_detail_title">${req.method} ${req.url}</div>
+            <div><b>Status:</b> ${req.status || 'Error'}</div>
+            <div><b>Type:</b> ${req.type}</div>
+            <div><b>Time:</b> ${formatTime(req.duration)}</div>
+            <div><b>Size:</b> ${formatSize(req.size)}</div>
+            ${req.error ? `<div style="color:#f44"><b>Error:</b> ${req.error}</div>` : ''}
+            ${req.responseHeaders ? `<div style="margin-top:6px"><b>Response Headers:</b><pre style="font-size:8px;color:#888;margin-top:2px">${req.responseHeaders}</pre></div>` : ''}
+        `;
+    };
+
+    const addNetworkRequest = (req) => {
+        networkRequests.unshift(req);
+        if (networkRequests.length > 100) networkRequests.pop();
+        renderNetworkList();
+    };
+
+    // Intercept fetch
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+        const method = args[1]?.method || 'GET';
+        const startTime = performance.now();
+
+        const req = {
+            url,
+            method: method.toUpperCase(),
+            type: 'fetch',
+            pending: true,
+            startTime
+        };
+        addNetworkRequest(req);
+
+        try {
+            const response = await originalFetch.apply(this, args);
+            req.pending = false;
+            req.status = response.status;
+            req.duration = performance.now() - startTime;
+
+            // Get response headers
+            const headers = [];
+            response.headers.forEach((v, k) => headers.push(`${k}: ${v}`));
+            req.responseHeaders = headers.join('\n');
+
+            // Clone to read size
+            const clone = response.clone();
+            try {
+                const blob = await clone.blob();
+                req.size = blob.size;
+            } catch (e) {}
+
+            renderNetworkList();
+            return response;
+        } catch (error) {
+            req.pending = false;
+            req.error = error.message;
+            req.duration = performance.now() - startTime;
+            renderNetworkList();
+            throw error;
+        }
+    };
+
+    // Intercept XMLHttpRequest
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+        this.__dt_method = method;
+        this.__dt_url = url;
+        return originalXHROpen.apply(this, [method, url, ...rest]);
+    };
+
+    XMLHttpRequest.prototype.send = function(...args) {
+        const startTime = performance.now();
+        const req = {
+            url: this.__dt_url,
+            method: (this.__dt_method || 'GET').toUpperCase(),
+            type: 'xhr',
+            pending: true,
+            startTime
+        };
+        addNetworkRequest(req);
+
+        this.addEventListener('load', () => {
+            req.pending = false;
+            req.status = this.status;
+            req.duration = performance.now() - startTime;
+            req.size = this.responseText?.length || 0;
+            req.responseHeaders = this.getAllResponseHeaders();
+            renderNetworkList();
+        });
+
+        this.addEventListener('error', () => {
+            req.pending = false;
+            req.error = 'Network error';
+            req.duration = performance.now() - startTime;
+            renderNetworkList();
+        });
+
+        return originalXHRSend.apply(this, args);
+    };
+
+    // Observe resource loading via PerformanceObserver
+    try {
+        const observer = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+                if (entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest') continue;
+
+                const req = {
+                    url: entry.name,
+                    method: 'GET',
+                    type: getRequestType(entry.name, entry.initiatorType),
+                    status: 200,
+                    duration: entry.duration,
+                    size: entry.transferSize || entry.encodedBodySize,
+                    pending: false
+                };
+                addNetworkRequest(req);
+            }
+        });
+        observer.observe({ entryTypes: ['resource'] });
+    } catch (e) {}
+
+    // Network filter buttons
+    d.querySelectorAll('.__dt_net_filter_btn').forEach(btn => {
+        btn.onclick = () => {
+            d.querySelectorAll('.__dt_net_filter_btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            networkFilter = btn.dataset.filter;
+            renderNetworkList();
+        };
+    });
+
+    d.querySelector('#__dt_net_clear').onclick = () => {
+        networkRequests.length = 0;
+        netDetail.style.display = 'none';
+        renderNetworkList();
+    };
+
+    // ==========================================
     // GLOBAL API
     // ==========================================
     window.__devtools = {
@@ -1013,9 +1271,10 @@
             hub.classList.toggle('hidden');
         },
         setTheme: setTheme,
-        settings: settings
+        settings: settings,
+        network: networkRequests
     };
 
-    log('Dev Tools v2.0 ready');
+    log('Dev Tools v2.1 ready');
     log('Press Esc to toggle, P to pick');
 })();
