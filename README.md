@@ -4,7 +4,7 @@ A lightweight, cyberpunk-themed developer tools extension for Chrome. Inspect el
 
 ![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green)
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)
-![Version](https://img.shields.io/badge/Version-2.0-cyan)
+![Version](https://img.shields.io/badge/Version-2.1-cyan)
 
 ## Features
 
@@ -12,6 +12,7 @@ A lightweight, cyberpunk-themed developer tools extension for Chrome. Inspect el
 - **Styles** - Modify size, spacing, colors, borders, opacity in real-time
 - **Console** - Run JavaScript in the page context
 - **Elements** - Search elements by CSS selector
+- **Network** - Monitor fetch/XHR requests with filters and detail view
 - **Settings** - Customize theme colors (8 presets + custom picker)
 - **Export CSS** - Download all your style modifications
 - **Undo** - Revert style changes with Ctrl+Z
@@ -72,7 +73,7 @@ Your theme preference is saved and persists across sessions.
 devtools-extension/
 ├── manifest.json    # Extension config
 ├── background.js    # Click handler
-├── content.js       # Main devtools UI/logic (~1000 lines)
+├── content.js       # Main devtools UI/logic (~1280 lines)
 ├── icons/           # Extension icons
 ├── README.md        # This file
 ├── NOTES.md         # Dev notes & changelog

@@ -10,14 +10,14 @@ This file provides guidance to Claude Code when working in this repository.
 
 - `manifest.json` - Chrome extension config (Manifest V3)
 - `background.js` - Handles extension icon click, injects content.js
-- `content.js` - **Main file** - All UI and logic (~1000 lines)
+- `content.js` - **Main file** - All UI and logic (~1280 lines)
 - `icons/` - Extension icons (16, 48, 128px)
 
 ## Architecture
 
 Everything is in `content.js` as a single IIFE that injects into the page:
 - CSS styles (scoped with `.__dt_` prefix)
-- HTML for 7 panels (hub, inspector, styles, console, elements, settings, shortcuts)
+- HTML for 8 panels (hub, inspector, styles, console, elements, network, settings, shortcuts)
 - Panel class handles drag/resize/snap
 - Settings stored in localStorage
 - Event listeners for all controls
@@ -29,6 +29,7 @@ Everything is in `content.js` as a single IIFE that injects into the page:
 - **Styles** - Width/height, padding/margin, colors, border, radius, opacity, export CSS, undo
 - **Console** - Eval JS in page context
 - **Elements** - Search by CSS selector
+- **Network** - Monitor fetch/XHR/resource requests with filters and detail view
 - **Settings** - Theme color presets + custom picker, reset options
 - **Shortcuts** - Keyboard shortcut reference
 
@@ -73,6 +74,12 @@ Everything is in `content.js` as a single IIFE that injects into the page:
 Repo: https://github.com/CovertCloak06/devtools-extension
 
 ## Changelog
+
+### v2.1.0 (2026-01-10)
+- Network panel: intercepts fetch/XHR, monitors resources via PerformanceObserver
+- Filter by type (All, Fetch, XHR, Img, JS, CSS)
+- Click request to see details and response headers
+- Fixed button label visibility with !important styles
 
 ### v2.0.0 (2026-01-08)
 - Theme customization: 8 preset colors + custom color picker

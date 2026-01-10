@@ -12,7 +12,7 @@
 ## Files
 - `manifest.json` - Extension config (Manifest V3)
 - `background.js` - Click handler, injects content.js
-- `content.js` - The actual devtools UI and logic (~1000 lines)
+- `content.js` - The actual devtools UI and logic (~1280 lines)
 - `icons/` - Extension icons (16, 48, 128px)
 
 ## Features
@@ -21,6 +21,7 @@
 - **Styles** - Size, spacing, colors, border, radius, opacity, undo, export CSS
 - **Console** - Run JS in page context
 - **Elements** - Search by CSS selector
+- **Network** - Monitor fetch/XHR/resource requests, filter by type, view details
 - **Settings** - Theme color picker (8 presets + custom)
 - **Shortcuts** - Keyboard shortcut reference
 
@@ -45,6 +46,13 @@
 | O | Outline all |
 
 ## Changelog
+
+### v2.1.0 (2026-01-10)
+- Network panel: intercepts fetch/XHR, monitors images/JS/CSS via PerformanceObserver
+- Filter by type (All, Fetch, XHR, Img, JS, CSS)
+- Click request to see details and response headers
+- Fixed button label visibility with !important styles
+- Hub panel height increased for 8 tools
 
 ### v2.0.0 (2026-01-08)
 - Theme customization with 8 preset colors + custom picker
