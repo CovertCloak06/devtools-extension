@@ -64,13 +64,13 @@
             .__dt_resize { background: linear-gradient(90deg, transparent 30%, ${accentRGB(0.3)} 50%, transparent 70%); }
             .__dt_resize_c::after { border-color: ${accentRGB(0.5)}; }
             .__dt_label { color: ${accent}; }
-            .__dt_btn { background: ${accentRGB(0.1)}; border-color: ${accentRGB(0.3)}; color: ${accent}; }
-            .__dt_btn:hover { background: ${accentRGB(0.25)}; border-color: ${accent}; }
-            .__dt_btn.active { background: ${accentRGB(0.3)}; }
+            .__dt_btn { background: ${accentRGB(0.1)} !important; border-color: ${accentRGB(0.3)} !important; color: ${accent} !important; }
+            .__dt_btn:hover { background: ${accentRGB(0.25)} !important; border-color: ${accent} !important; }
+            .__dt_btn.active { background: ${accentRGB(0.3)} !important; }
             .__dt_input { border-color: ${accentRGB(0.3)}; }
             .__dt_input:focus { border-color: ${accent}; }
-            .__dt_tool { border-color: ${accentRGB(0.3)}; background: ${accentRGB(0.05)}; color: ${accent}; }
-            .__dt_tool:hover { background: ${accentRGB(0.15)}; border-color: ${accent}; box-shadow: 0 0 12px ${accentRGB(0.2)}; }
+            .__dt_tool { border-color: ${accentRGB(0.3)} !important; background: ${accentRGB(0.05)} !important; color: ${accent} !important; }
+            .__dt_tool:hover { background: ${accentRGB(0.15)} !important; border-color: ${accent} !important; box-shadow: 0 0 12px ${accentRGB(0.2)}; }
             #__dt_hover { border-color: ${accent}; background: ${accentRGB(0.1)}; }
             .__dt_range { background: ${accentRGB(0.2)}; }
             .__dt_range::-webkit-slider-thumb { background: ${accent}; }
